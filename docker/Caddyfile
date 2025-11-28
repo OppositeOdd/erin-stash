@@ -30,7 +30,7 @@
 }
 
 # Server configuration
-{$PUBLIC_URL} {
+:80 {
   vars auth_enabled {$AUTH_ENABLED}
 
 	# File server
