@@ -40,6 +40,7 @@ ENV USE_CUSTOM_SKIN="false"
 ENV STASH_URL=""
 ENV GROUP_NAMES=""
 ENV STASH_PATH_PREFIX="/data"
+ENV ERIN_PATH_PREFIX="/data"
 ENV STASH_API_KEY=""
 
 # Copy entrypoint script

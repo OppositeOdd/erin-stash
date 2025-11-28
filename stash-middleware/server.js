@@ -4,7 +4,10 @@ const fetch = require('node-fetch');
 const path = require('path');
 const fs = require('fs');
 
-require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+// Load .env file only if it exists (for local development)
+if (fs.existsSync(path.join(__dirname, '..', '.env'))) {
+  require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+}
 
 const app = express();
 
