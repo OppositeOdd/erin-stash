@@ -33,10 +33,9 @@
 :80 {
   vars auth_enabled {$AUTH_ENABLED}
 
-	# File server
-	handle_path /media/* {
-		root /srv/videos/
-		file_server browse
+	# Proxy middleware API requests to the Node.js middleware
+	handle /media/* {
+		reverse_proxy localhost:{$MIDDLEWARE_PORT}
 
 		# CORS
 		@cors_preflight method OPTIONS
@@ -70,6 +69,11 @@
       }
       header X-ERIN-HASH "{$AUTH_SECRET}"
     }
+	}
+
+	# Health check endpoint
+	handle /health {
+		reverse_proxy localhost:{$MIDDLEWARE_PORT}
 	}
 
 	# React App
