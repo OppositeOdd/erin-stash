@@ -63,7 +63,7 @@
 		}
 
 		# Authentication
-		@auth_active expression method('GET','HEAD') && {vars.auth_enabled} == true && !query({'hash': '{$AUTH_SECRET}'})
+		@auth_active expression method('GET','HEAD') && {vars.auth_enabled} == "true" && !query({'hash': '{$AUTH_SECRET}'})
     handle @auth_active {
       basic_auth {
         Erin {$AUTH_SECRET}
