@@ -34,16 +34,8 @@ const App = () => {
   const _storeSecret = (s) => {
     localStorage.setItem("erin_secret", s);
   };
-  const _hasStoredVideos = () => {
-    let v = localStorage.getItem("erin_videos");
-    if (!v) return false;
-    v = JSON.parse(v);
-    if (!v || v.length === 0) return false;
-    return true;
-  };
-  const _storeVideos = (v) => {
-    localStorage.setItem("erin_videos", JSON.stringify(v));
-  };
+
+
   const _getStoredVideos = () => {
     const v = localStorage.getItem("erin_videos");
     if (!v) return [];
@@ -125,7 +117,7 @@ const App = () => {
   const handleInputSecret = (e) => setFormSecret(e.target.value);
 
   // Members - Cache management
-  const [hasCache, setHasCache] = useState(false);
+  const [hasCache] = useState(false);
 
   // Member - Determines whether we are able to communicate with the remote server
   const [loading, setLoading] = useState(false);
@@ -357,7 +349,7 @@ const App = () => {
 
     if (evt) setHasEverSubmitted(true);
 
-    fetch(`${window.PUBLIC_URL}/media/`, {
+    fetch(`${window.MEDIA_API_URL || window.PUBLIC_URL}/media/`, {
       method: "HEAD",
       cache: "no-cache",
       headers: _makeHTTPHeaders(),
@@ -384,7 +376,7 @@ const App = () => {
 
   // Method - Recursive video retrieval
   const _retrieveVideosRecursively = (path = "") => {
-    return fetch(_toAuthenticatedUrl(`${window.PUBLIC_URL}/media/${encodeURIComponent(path)}`), {
+    return fetch(_toAuthenticatedUrl(`${window.MEDIA_API_URL || window.PUBLIC_URL}/media/${encodeURIComponent(path)}`), {
       method: "GET",
       cache: "no-cache",
       headers: _makeHTTPHeaders(),
@@ -418,6 +410,81 @@ const App = () => {
   const retrieveVideos = () => {
     if (!hasCache) setLoading(true);
 
+    const usingMiddleware = window.MEDIA_API_URL && window.MEDIA_API_URL !== window.PUBLIC_URL;
+
+    if (usingMiddleware) {
+      fetch(_toAuthenticatedUrl(`${window.MEDIA_API_URL}/media/`), {
+        method: "GET",
+        cache: "no-cache",
+        headers: _makeHTTPHeaders(),
+      })
+        .then((r) => r.json())
+        .then((_videoFiles) => {
+          setAllVideos(_videoFiles);
+
+          const _allPlaylists = [
+            ...new Set(_videoFiles.map((v) => v.playlist).filter((p) => p)),
+          ].sort();
+          setPlaylists(_allPlaylists.map((_p) => ({ name: _p, metadataURL: false })));
+
+          let currentPlaylist = window._decodeURIComponentSafe(window.location.pathname.substring(1));
+          if (currentPlaylist && currentPlaylist.substr(-1) === "/")
+            currentPlaylist = currentPlaylist.substring(0, currentPlaylist.length - 1);
+
+          if (currentPlaylist) {
+            _videoFiles = _videoFiles.filter((v) => v.playlist === currentPlaylist);
+            setActivePlaylistForGallery({ name: currentPlaylist, videos: _videoFiles });
+          }
+
+          const query = new URLSearchParams(window.location.search);
+          let currentVideoFromURL = null;
+          if (query.has("play")) {
+            const suppliedFragment = query.get("play");
+            if (!currentPlaylist)
+              currentVideoFromURL = _videoFiles.find((v) => _getShareFragment(v) === suppliedFragment);
+            else
+              currentVideoFromURL = _videoFiles.find(
+                (v) => encodeURIComponent(v.filename) === suppliedFragment
+              );
+            if (currentVideoFromURL)
+              _videoFiles = _videoFiles.filter((v) => v.url !== currentVideoFromURL.url);
+          }
+
+          setVideos((freshVideos) => {
+            if (!hasCache || currentPlaylist)
+              return currentVideoFromURL
+                ? [currentVideoFromURL, ..._shuffleArray(_videoFiles)]
+                : _shuffleArray(_videoFiles);
+            else if (hasCache && !_arraysAreEqual(_videoFiles, freshVideos))
+              return currentVideoFromURL
+                ? [
+                    currentVideoFromURL,
+                    ..._shuffleArray([
+                      ...freshVideos.filter((f) => f.url !== currentVideoFromURL.url),
+                      ..._videoFiles.filter((f) => !freshVideos.some((v) => v.url === f.url)),
+                    ]),
+                  ]
+                : _shuffleArray([
+                    ...freshVideos,
+                    ..._videoFiles.filter((f) => !freshVideos.some((v) => v.url === f.url)),
+                  ]);
+            else return freshVideos;
+          });
+
+          if (!hasCache) {
+            setLoading(false);
+          }
+          
+          setHasReachedRemoteServer(true);
+        })
+        .catch((error) => {
+          console.error('Error fetching from middleware:', error);
+          setLoading(false);
+        });
+
+      return;
+    }
+
     _retrieveVideosRecursively().then((files) => {
       if (!files) setLoading(false);
 
@@ -437,7 +504,7 @@ const App = () => {
           if (!_isSafari || (_isSafari && current.extension !== "ogg"))
             _videoFiles[_id] = {
               url: window._decodeURIComponentSafe(
-                _toAuthenticatedUrl(`${window.PUBLIC_URL}/media/${current.url}`)
+                _toAuthenticatedUrl(`${window.MEDIA_API_URL || window.PUBLIC_URL}/media/${current.url}`)
               ),
               filename: current.name,
               title: current.name
@@ -458,7 +525,7 @@ const App = () => {
         // Case : Metadata file for a video
         if (_id in _videoFiles) {
           _videoFiles[_id].metadataURL = _toAuthenticatedUrl(
-            `${window.PUBLIC_URL}/media/${current.url}`
+            `${window.MEDIA_API_URL || window.PUBLIC_URL}/media/${current.url}`
           );
           continue;
         }
@@ -467,7 +534,7 @@ const App = () => {
         if (_id === "metadata") {
           const _name = current.url.substr(0, current.url.lastIndexOf("/"));
           _playlistsMetadataTracker[_name] = _toAuthenticatedUrl(
-            `${window.PUBLIC_URL}/media/${current.url}`
+            `${window.MEDIA_API_URL || window.PUBLIC_URL}/media/${current.url}`
           );
         }
       }
@@ -534,13 +601,16 @@ const App = () => {
               ]
             : _shuffleArray([
                 ...freshVideos,
-                ..._videoFiles.filter((f) => !freshVideos.some((v) => v.url === f.url)),
-              ]);
+                  ..._videoFiles.filter((f) => !freshVideos.some((v) => v.url === f.url)),
+                ]);
+        else return freshVideos;
       });
 
       if (!hasCache) {
         setLoading(false);
       }
+      
+      setHasReachedRemoteServer(true);
     });
   };
 
