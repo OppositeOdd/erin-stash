@@ -31,9 +31,7 @@ Complete Docker Compose configuration running both Erin and the Stash middleware
 2. **Configure required variables in `.env`:**
    ```bash
    STASH_URL=http://localhost:9999
-   MEDIA_PATH=/path/to/your/media
    GROUP_NAMES=Erin,Favorites,etc.
-   STASH_PATH_PREFIX=/data # wherever media is mapped to your stash setup
    ```
 
 3. **Start services:**

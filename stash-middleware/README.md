@@ -27,19 +27,17 @@ GROUP_NAME=Erin
 
 # Server
 PORT=3001
-
-# Path Mapping
-STASH_PATH_PREFIX=/data
-ERIN_PATH_PREFIX=/Volumes/archive/Media
 ```
 
 ## How It Works
 
-1. Queries Stash GraphQL API for videos in specified group
-2. Converts Stash database paths to local filesystem paths
-3. Serves videos in Erin's expected format at `http://localhost:3001/media/`
+1. Queries Stash GraphQL API for videos in specified group(s)
+2. Generates streaming URLs using Stash's built-in `/scene/{id}/stream` endpoints
+3. Serves video metadata in Erin's expected format at `http://localhost:3001/media/`
+4. Browser streams videos directly from Stash server
 
 ## Endpoints
 
-- `GET /media/` - Returns all videos from Stash group
-- `GET /media/*` - Serves video files (proxied from filesystem)
+- `GET /health` - Health check endpoint
+- `GET /media/` - Returns all videos from all configured Stash groups
+- `GET /media/:groupName` - Returns videos from specific group

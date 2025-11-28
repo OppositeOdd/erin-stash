@@ -45,19 +45,6 @@ services:
       
       # Port for middleware API (internal, mapped to 3001 externally)
       MIDDLEWARE_PORT: 3001
-      
-      # ==================================================
-      # PATH MAPPING CONFIGURATION
-      # ==================================================
-      # Path prefix used in Stash database
-      STASH_PATH_PREFIX: ${STASH_PATH_PREFIX:-/data}
-      
-      # Actual filesystem path where media files are located
-      ERIN_PATH_PREFIX: /media
-    volumes:
-      # Mount your media directory (read-only recommended)
-      # Adjust the left side to match your media location
-      - ${MEDIA_PATH:-/path/to/media}:/media:ro
     restart: unless-stopped
     networks:
       - erin-network
@@ -112,8 +99,6 @@ networks:
 #
 #    STASH_URL=http://stash:9999  # Use 'stash' for container name or IP for external
 #    GROUP_NAMES=Erin,Favorites,New Releases
-#    STASH_PATH_PREFIX=/data
-#    MEDIA_PATH=/path/to/your/media
 #
 # 3. Run: docker-compose up -d
 # 4. Access Erin at: http://localhost:3000
@@ -124,11 +109,9 @@ networks:
 #
 # Required:
 #   STASH_URL              - URL to Stash server (e.g., http://192.168.1.75:9999)
-#   MEDIA_PATH             - Path to media files on host (e.g., /mnt/media)
 #
 # Recommended:
 #   GROUP_NAMES            - Comma-separated Stash groups (e.g., Erin,Favorites)
-#   STASH_PATH_PREFIX      - Stash DB path prefix (default: /data)
 #
 # Optional:
 #   STASH_API_KEY          - Stash API key (if authentication required)
@@ -148,11 +131,6 @@ networks:
 # VOLUMES
 # ==================================================
 #
-# The container needs read access to your media files.
-# Map your media directory to /media inside the container.
-#
-# Example:
-#   volumes:
-#     - /mnt/nas/videos:/media:ro
+# No volume mounts needed! Videos stream directly from Stash.
 #
 # ==================================================

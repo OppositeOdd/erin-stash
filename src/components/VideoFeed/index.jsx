@@ -27,6 +27,15 @@ const VideoFeed = ({
 
   // Member - Saves a ref to every video element on the page
   const videoRefs = useRef([]);
+  const saveVideoRef = (index) => (ref) => {
+    videoRefs.current[index] = ref;
+  };
+
+  // Member - Number of videos to load at a time
+  const _bufferSize = 3;
+
+  // Member - Current scroll direction
+  const _scrollDirection = document.querySelector("html").getAttribute("data-scroll-direction");
 
   // Member - Prevent double jump forward
   const hasJumpedForward = useRef(false);
@@ -39,22 +48,6 @@ const VideoFeed = ({
 
   // Member - Prevent clogging CPU with setTimeout calls on mouse move (fullscren-mode only)
   let timer = useRef();
-
-  // Member - Debouncing for DOM updates to prevent race conditions
-  const isUpdating = useRef(false);
-  const updateTimeout = useRef(null);
-
-  // Member - Number of videos to load at a time
-  const _bufferSize = 3;
-
-  // Member - Current scroll direction
-  const _scrollDirection = document
-    .querySelector("html")
-    .getAttribute("data-scroll-direction");
-
-  const saveVideoRef = (index) => (ref) => {
-    videoRefs.current[index] = ref;
-  };
 
   // Mechanism - On video end, call a listener to trigger autoscroll + autoplay if enabled + progress tracker
   const handleVideoTimeUpdate = (e) => {
@@ -74,17 +67,13 @@ const VideoFeed = ({
   useEffect(() => {
     if (jumpToEnd)
       return feedRef.current.scrollBy(
-        _scrollDirection === "vertical"
-          ? { top: 1, left: 0 }
-          : { top: 0, left: 1 },
+        _scrollDirection === "vertical" ? { top: 1, left: 0 } : { top: 0, left: 1 }
       );
     if (jumpBackForward) {
       if (!hasJumpedForward.current) {
         hasJumpedForward.current = true;
         return feedRef.current.scrollBy(
-          _scrollDirection === "vertical"
-            ? { top: 1, left: 0 }
-            : { top: 0, left: 1 },
+          _scrollDirection === "vertical" ? { top: 1, left: 0 } : { top: 0, left: 1 }
         );
       }
 
@@ -114,11 +103,7 @@ const VideoFeed = ({
           visibleIndex = currentIndex;
           videoElement.play().catch((_) => {});
           onFocusVideo(videos[currentIndex], currentIndex);
-          videoElement.addEventListener(
-            "timeupdate",
-            handleVideoTimeUpdate,
-            true,
-          );
+          videoElement.addEventListener("timeupdate", handleVideoTimeUpdate, true);
           videoElement.addEventListener("ended", replayVideo, true);
           currentVideoElement.current = videoElement;
           progressRef.current.style.transform = `scaleX(0)`;
@@ -126,11 +111,7 @@ const VideoFeed = ({
         // Case when a video is off-screen or being scrolled in / out of the screen
         else {
           videoElement.pause();
-          videoElement.removeEventListener(
-            "timeupdate",
-            handleVideoTimeUpdate,
-            true,
-          );
+          videoElement.removeEventListener("timeupdate", handleVideoTimeUpdate, true);
           videoElement.removeEventListener("ended", replayVideo, true);
         }
       });
@@ -143,20 +124,12 @@ const VideoFeed = ({
 
       if (previousIndex === currentIndex) return;
 
-      if (updateTimeout.current) {
-        clearTimeout(updateTimeout.current);
-      }
-
-      if (isUpdating.current) return;
-
       const scrollDirection = currentIndex > previousIndex ? "next" : "prev";
 
-      const videoHeight =
-        videoRefs.current[1].parentNode.getBoundingClientRect().height;
+      const videoHeight = videoRefs.current[1].parentNode.getBoundingClientRect().height;
       const padHeight = videoHeight * (currentIndex - 1);
 
-      const videoWidth =
-        videoRefs.current[1].parentNode.getBoundingClientRect().width;
+      const videoWidth = videoRefs.current[1].parentNode.getBoundingClientRect().width;
       const padWidth = videoWidth * (currentIndex - 1);
 
       currentVideoIndex.current = visibleIndex;
@@ -166,83 +139,56 @@ const VideoFeed = ({
       // - Case when moved to the next video
       if (scrollDirection === "next") {
         if (currentIndex > 1 && currentIndex < videos.length - 1) {
-          isUpdating.current = true;
+          // The first video becomes the latest video, and all videos are shifted backwards once
+          const firstElement = videoRefs.current.shift();
+          videoRefs.current.push(firstElement);
 
-          updateTimeout.current = setTimeout(() => {
-            // The first video becomes the latest video, and all videos are shifted backwards once
-            const firstElement = videoRefs.current.shift();
-            videoRefs.current.push(firstElement);
+          // - - The first element is moved from back to front in the DOM, to enable scroll
+          if (_scrollDirection === "vertical") padRef.current.style.height = `${padHeight}px`;
+          else padRef.current.style.width = `${padWidth}px`;
 
-            // - - The first element is moved from back to front in the DOM, to enable scroll
-            if (_scrollDirection === "vertical")
-              padRef.current.style.height = `${padHeight}px`;
-            else padRef.current.style.width = `${padWidth}px`;
+          videoRefs.current[_bufferSize - 2].parentNode.insertAdjacentElement(
+            "afterend",
+            firstElement.parentNode
+          );
 
-            videoRefs.current[_bufferSize - 2].parentNode.insertAdjacentElement(
-              "afterend",
-              firstElement.parentNode,
-            );
+          // - - The first-has-become-last element is updated in the DOM
+          firstElement.setAttribute("data-index", currentIndex + 1);
 
-            // - - The first-has-become-last element is updated in the DOM
-            firstElement.setAttribute("data-index", currentIndex + 1);
-
-            const _nextVideo = videos[currentIndex + 1];
-            if (!_nextVideo) {
-              isUpdating.current = false;
-              return;
-            }
-
-            const videoSrc = _nextVideo.url;
-            firstElement.setAttribute("src", videoSrc);
-
-            setTimeout(() => {
-              isUpdating.current = false;
-            }, 300);
-          }, 300);
+          const _nextVideo = videos[currentIndex + 1];
+          // Stash middleware returns full URLs, no encoding needed
+          firstElement.setAttribute("src", _nextVideo.url);
         }
       }
 
       // - Case when moved to the previous video
       else if (scrollDirection === "prev") {
         if (previousIndex > 1 && previousIndex < videos.length - 1) {
-          isUpdating.current = true;
+          // The last video becomes the future first video, and all videos are shifted forwards once
+          const lastElement = videoRefs.current.at(-1);
+          videoRefs.current.unshift(lastElement);
+          videoRefs.current.splice(-1);
 
-          updateTimeout.current = setTimeout(() => {
-            // The last video becomes the future first video, and all videos are shifted forwards once
-            const lastElement = videoRefs.current.at(-1);
-            videoRefs.current.unshift(lastElement);
-            videoRefs.current.splice(-1);
+          // - - The last element is moved from front to back in the DOM, to enable scroll
+          videoRefs.current[1].parentNode.insertAdjacentElement(
+            "beforebegin",
+            lastElement.parentNode
+          );
 
-            // - - The last element is moved from front to back in the DOM, to enable scroll
-            videoRefs.current[1].parentNode.insertAdjacentElement(
-              "beforebegin",
-              lastElement.parentNode,
-            );
+          if (_scrollDirection === "vertical") padRef.current.style.height = `${padHeight}px`;
+          else padRef.current.style.width = `${padWidth}px`;
 
-            if (_scrollDirection === "vertical")
-              padRef.current.style.height = `${padHeight}px`;
-            else padRef.current.style.width = `${padWidth}px`;
-
-            // - - The last-has-become-first element is updated in the DOM
-            lastElement.setAttribute("data-index", currentIndex - 1);
-            const _previousVideo = videos[currentIndex - 1];
-
-            const videoSrc = _previousVideo.url;
-            lastElement.setAttribute("src", videoSrc);
-
-            setTimeout(() => {
-              isUpdating.current = false;
-            }, 50);
-          }, 200);
+          // - - The last-has-become-first element is updated in the DOM
+          lastElement.setAttribute("data-index", currentIndex - 1);
+          const _previousVideo = videos[currentIndex - 1];
+          // Stash middleware returns full URLs, no encoding needed
+          lastElement.setAttribute("src", _previousVideo.url);
         }
       }
     };
 
     // Set up the observer
-    const observer = new IntersectionObserver(
-      handleIntersection,
-      observerOptions,
-    );
+    const observer = new IntersectionObserver(handleIntersection, observerOptions);
 
     // Attach the observer to every video component
     for (let i = 0; i < videoRefs.current.length; i++)
@@ -262,16 +208,15 @@ const VideoFeed = ({
       feedRef.current.scrollBy(
         _scrollDirection === "vertical"
           ? { top: 1, left: 0, behavior: "smooth" }
-          : { top: 0, left: 1, behavior: "smooth" },
+          : { top: 0, left: 1, behavior: "smooth" }
       );
     else if (e.code === "ArrowUp")
       feedRef.current.scrollBy(
         _scrollDirection === "vertical"
           ? { top: -1, left: 0, behavior: "smooth" }
-          : { top: 0, left: -1, behavior: "smooth" },
+          : { top: 0, left: -1, behavior: "smooth" }
       );
   };
-
   const toggleFullscreen = () => {
     const element = document.documentElement;
     const requestMethod =
@@ -295,15 +240,12 @@ const VideoFeed = ({
       document.exitFullscreen();
     }
   };
-
   const seekVideoForward = () => {
     currentVideoElement.current.currentTime += 5;
   };
-
   const seekVideoBackward = () => {
     currentVideoElement.current.currentTime -= 5;
   };
-
   const handleVideoTapToSeek = (e) => {
     const fullWidth = e.target.offsetWidth;
 
@@ -311,11 +253,9 @@ const VideoFeed = ({
     const secondThird = (fullWidth / 3) * 2;
 
     if (e.clientX >= 0 && e.clientX <= firstThird) seekVideoBackward();
-    else if (e.clientX > firstThird && e.clientX <= secondThird)
-      toggleFullscreen();
+    else if (e.clientX > firstThird && e.clientX <= secondThird) toggleFullscreen();
     else if (e.clientX > secondThird) seekVideoForward();
   };
-
   const handleMouseMove = () => {
     if (!isInFullscreen.current) return;
     if (!fullscreenIsSafe.current) return;
@@ -328,7 +268,6 @@ const VideoFeed = ({
       document.body.classList.add("fullscreen");
     }, 3000);
   };
-
   useEffect(() => {
     // Seeking mechanism
     document.addEventListener("keydown", handleKeyboardSeeking);
@@ -357,10 +296,7 @@ const VideoFeed = ({
           refForwarder={saveVideoRef(k)}
         />
       ))}
-      <div
-        className={`video-track-progress ${window.PROGRESS_BAR_POSITION}`}
-        ref={progressRef}
-      />
+      <div className={`video-track-progress ${window.PROGRESS_BAR_POSITION}`} ref={progressRef} />
     </div>
   );
 };

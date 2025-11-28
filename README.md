@@ -17,10 +17,10 @@
 
 - [Introduction](#introduction)
 - [What's New in This Fork](#-whats-new-in-this-fork)
-- [Quick Start](#quick-start)
-  - [Docker with Stash (Recommended)](#docker-with-stash-recommended)
-  - [Docker Standalone](#docker-standalone)
-  - [From Source](#from-source)
+- [Quick Start](#quick-start) 
+- [Docker with Stash (Recommended)](#docker-with-stash-recommended)
+- [Docker Standalone](#docker-standalone)
+- [From Source](#from-source)
 - [How It Works](#how-it-works)
 - [Stash Setup](#stash-setup)
 - [Configuration](#configuration)
@@ -36,10 +36,10 @@ Erin is a simple and self-hostable service that enables you to view your own cli
 ## 🆕 What's New in This Fork?
 
 - **Stash Integration**: Fetch videos directly from your Stash library using GraphQL
+- **Streaming Support**: Videos stream directly from Stash's built-in streaming endpoints
 - **Multiple Playlists**: Use Stash groups as playlists - each group becomes a separate feed
 - **Built-in Middleware**: Integrated Node.js middleware handles Stash communication
-- **Single Docker Container**: Simplified deployment with both services in one image
-- **Path Mapping**: Automatic translation between Stash database paths and filesystem
+- **Single Docker Container**: Simplified deployment - no volume mounts required
 - **Backward Compatible**: Still works with folder-based video organization if you don't use Stash
 
 ## Quick Start
@@ -48,7 +48,6 @@ Erin is a simple and self-hostable service that enables you to view your own cli
 
 ```yaml
 # docker-compose.yml
-version: '3.8'
 services:
   erin:
     image: ghcr.io/OppositeOdd/erin-stash:latest
@@ -56,10 +55,9 @@ services:
       - "3000:80"      # Erin web interface
       - "3001:3001"    # Middleware API
     environment:
-      # Stash Configuration
+      # Stash Configuration (Required)
       STASH_URL: http://192.168.1.75:9999
-      GROUP_NAMES: Erin,Favorites,Workout
-      STASH_PATH_PREFIX: /data
+      GROUP_NAMES: Erin,Favorites
       STASH_API_KEY: ""  # Optional, if Stash requires auth
       
       # Erin Configuration
@@ -69,14 +67,13 @@ services:
       AUTOPLAY_ENABLED: "true"
       SCROLL_DIRECTION: vertical
       PROGRESS_BAR_POSITION: top
-    volumes:
-      - /mnt/media:/media:ro
 ```
 
 Start with:
 ```bash
 docker-compose up -d
 ```
+
 
 ### Docker Standalone
 
@@ -95,7 +92,7 @@ docker run -d \
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/erin-stash.git
+git clone https://github.com/OppositeOdd/erin-stash.git
 cd erin-stash
 
 # Install dependencies
@@ -134,12 +131,12 @@ This starts:
             │                      ↓
             │              ┌──────────────────┐
             │              │   Stash Server   │
-            │              │   (GraphQL API)  │
+            │              │  (Streaming API) │
             │              └──────────────────┘
-            ↓
-    ┌──────────────────┐
-    │   Media Files    │
-    │   (Host Volume)  │
+            ↓                      ↓
+    ┌──────────────────┐          │
+    │   Your Browser   │←─────────┘
+    │  (Plays Videos)  │
     └──────────────────┘
 ```
 
@@ -147,20 +144,10 @@ This starts:
 
 1. **Erin Web UI** requests video list from middleware at `http://localhost:3001/media/`
 2. **Middleware** queries Stash GraphQL API for scenes in configured groups
-3. **Stash** returns scene metadata with database paths (e.g., `/data/Videos/movie.mp4`)
-4. **Middleware** translates paths using `STASH_PATH_PREFIX` → `/media/Videos/movie.mp4`
-5. **Middleware** returns processed video list to Erin
-6. **Erin** displays videos and streams them directly from mounted volume
-
-### Path Mapping Example
-
-```
-Stash DB:    /data/Videos/Workouts/cardio.mp4
-             ↓ (replace STASH_PATH_PREFIX with /media)
-Container:   /media/Videos/Workouts/cardio.mp4
-             ↓ (mounted from host)
-Host:        /mnt/nas/media/Videos/Workouts/cardio.mp4
-```
+3. **Stash** returns scene metadata with IDs
+4. **Middleware** creates streaming URLs (e.g., `http://stash:9999/scene/123/stream`)
+5. **Middleware** returns video list to Erin
+6. **Browser** streams videos directly from Stash - no file access needed!
 
 ## Stash Setup
 
@@ -205,30 +192,31 @@ curl http://localhost:3001/media/Erin
 
 ## Configuration
 
-### Stash-Specific Variables
+### Environment Variables
+
+**Stash Middleware (Required)**
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `STASH_URL` | Yes | - | Full URL to your Stash server (e.g., `http://192.168.1.75:9999`) |
-| `GROUP_NAMES` | Yes | - | Comma-separated list of Stash group names (e.g., `Erin,Favorites`) |
-| `STASH_PATH_PREFIX` | Yes | `/data` | Path prefix in Stash database (usually `/data`) |
-| `STASH_API_KEY` | No | - | Stash API key if authentication is required |
+| `STASH_URL` | Yes | - | Full URL to your Stash server (e.g., `http://192.168.1.75:9999` or `http://stash:9999` in Docker) |
+| `GROUP_NAMES` | Yes | `Erin` | Comma-separated list of Stash group names (e.g., `Erin,Favorites,Workout`) |
+| `STASH_API_KEY` | No | - | Stash API key if authentication is required (from Stash Settings → Security) |
+| `MIDDLEWARE_PORT` | No | `3001` | Port for the middleware API server |
 
-### Erin Core Variables
+**Erin Web UI (Optional)**
 
-| Variable | Type | Default | Description |
-|----------|------|---------|-------------|
-| `PUBLIC_URL` | string | `https://localhost` | Public URL for accessing Erin (include protocol, exclude trailing slash) |
-| `AUTH_ENABLED` | boolean | `true` | Enable basic authentication (case-sensitive: `true` or `false`) |
-| `AUTH_SECRET` | string | Hash of `secure-password` | Bcrypt hash of your password |
-| `APP_TITLE` | string | `Erin - TikTok feed for your own clips` | Browser tab title (use `[VIDEO_TITLE]` for dynamic titles) |
-| `AUTOPLAY_ENABLED` | boolean | `false` | Enable automatic video playback |
-| `PROGRESS_BAR_POSITION` | string | `bottom` | Progress bar position (`top` or `bottom`) |
-| `IGNORE_HIDDEN_PATHS` | boolean | `false` | Ignore hidden files/directories (starting with `.`) |
-| `SCROLL_DIRECTION` | string | `vertical` | Video feed scroll direction (`vertical` or `horizontal`) |
-| `USE_CUSTOM_SKIN` | boolean | `false` | Load custom CSS stylesheet |
-
-See [ENVIRONMENT-VARIABLES.md](ENVIRONMENT-VARIABLES.md) for complete documentation.
+| Variable | Default | Options | Description |
+|----------|---------|---------|-------------|
+| `PUBLIC_URL` | `https://localhost` | Any URL | Public URL for accessing Erin |
+| `MEDIA_API_URL` | `http://localhost:3001` | Any URL | URL to the Stash middleware API |
+| `AUTH_ENABLED` | `true` | `true` \| `false` | Enable basic authentication |
+| `AUTH_SECRET` | Hash of `secure-password` | Bcrypt hash | Password hash for authentication |
+| `APP_TITLE` | `Erin - TikTok feed for your own clips` | Any string | Browser tab title |
+| `AUTOPLAY_ENABLED` | `false` | `true` \| `false` | Auto-play videos when scrolled into view |
+| `PROGRESS_BAR_POSITION` | `bottom` | `top` \| `bottom` | Video progress bar position |
+| `SCROLL_DIRECTION` | `vertical` | `vertical` \| `horizontal` | Feed scroll direction (TikTok-style) |
+| `IGNORE_HIDDEN_PATHS` | `false` | `true` \| `false` | Skip hidden files/folders (starting with `.`) |
+| `USE_CUSTOM_SKIN` | `false` | `true` \| `false` | Load custom CSS stylesheet |
 
 ### Generating Password Hash
 
@@ -264,10 +252,9 @@ docker run caddy caddy hash-password --plaintext "your-new-password"
 ### Basic Stash Integration
 
 ```yaml
-version: '3.8'
 services:
   erin:
-    image: ghcr.io/yourusername/erin-stash:latest
+    image: ghcr.io/oppositeodd/erin-stash:latest
     ports:
       - "3000:80"
       - "3001:3001"
@@ -292,20 +279,15 @@ services:
       STASH_URL: https://stash.example.com:9999
       STASH_API_KEY: your-api-key-here
       GROUP_NAMES: Favorites,Workout,Learning,Archive
-      STASH_PATH_PREFIX: /data
       PUBLIC_URL: https://erin.example.com
       AUTH_ENABLED: "true"
       AUTH_SECRET: "$$2a$$14$$hashed-password"
       AUTOPLAY_ENABLED: "true"
-    volumes:
-      - /mnt/nas/videos:/media:ro
 ```
 
 ### Running Alongside Stash
 
 ```yaml
-version: '3.8'
-
 services:
   stash:
     image: stashapp/stash:latest
@@ -325,10 +307,7 @@ services:
     environment:
       STASH_URL: http://stash:9999
       GROUP_NAMES: Erin,Favorites
-      STASH_PATH_PREFIX: /data
       PUBLIC_URL: https://erin.example.com
-    volumes:
-      - /mnt/media:/media:ro
 ```
 
 ### Traditional Folder-Based (No Stash)
@@ -376,32 +355,6 @@ curl http://localhost:3001/media/
 
 # View videos from specific group
 curl http://localhost:3001/media/Erin
-```
-
-#### Path Mapping Issues
-
-**Common problems:**
-- `STASH_PATH_PREFIX` doesn't match Stash's configured path
-- Media files not accessible at the mounted path
-- File permissions prevent reading
-
-**Test path translation:**
-```bash
-curl http://localhost:3001/media/paths
-```
-
-Expected response shows path mapping:
-```json
-[
-  {
-    "group": "Erin",
-    "sceneId": "123",
-    "title": "Video Title",
-    "stashPath": "/data/Videos/video.mp4",
-    "erinPath": "/media/Videos/video.mp4",
-    "filename": "video.mp4"
-  }
-]
 ```
 
 #### Connection Refused to Stash

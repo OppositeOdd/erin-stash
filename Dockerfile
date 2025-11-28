@@ -39,9 +39,8 @@ ENV USE_CUSTOM_SKIN="false"
 # Stash middleware environment variables
 ENV STASH_URL=""
 ENV GROUP_NAMES=""
-ENV STASH_PATH_PREFIX="/data"
-ENV ERIN_PATH_PREFIX="/data"
 ENV STASH_API_KEY=""
+ENV MIDDLEWARE_PORT="3001"
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh /docker-entrypoint.sh
