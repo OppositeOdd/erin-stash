@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # Erin with integrated Stash Middleware
+  erin:
+    image: ghcr.io/oppositeodd/erin-stash:latest
+    container_name: erin
+    ports:
+      # Erin web interface
+      - "3000:80"
+      # Stash middleware API
+      - "3001:3001"
+    environment:
+      # ==================================================
+      # ERIN CONFIGURATION
+      # ==================================================
+      # These variables configure the Erin React application
+      
+      # Scroll direction for video feed
+      SCROLL_DIRECTION: ${SCROLL_DIRECTION:-vertical}
+      
+      # Whether videos should autoplay when scrolled into view
+      AUTOPLAY_ENABLED: ${AUTOPLAY_ENABLED:-true}
+      
+      # Position of the video progress bar (top or bottom)
+      PROGRESS_BAR_POSITION: ${PROGRESS_BAR_POSITION:-top}
+      
+      # Skip videos in hidden directories (starting with .)
+      IGNORE_HIDDEN_PATHS: ${IGNORE_HIDDEN_PATHS:-true}
+      
+      # ==================================================
+      # STASH MIDDLEWARE CONFIGURATION
+      # ==================================================
+      # Full URL to your Stash server
+      STASH_URL: ${STASH_URL}
+      
+      # API key for Stash authentication (optional)
+      STASH_API_KEY: ${STASH_API_KEY:-}
+      
+      # Comma-separated list of Stash group names (each becomes a playlist)
+      GROUP_NAMES: ${GROUP_NAMES:-Erin}
+      
+      # Port for middleware API (internal, mapped to 3001 externally)
+      MIDDLEWARE_PORT: 3001
+      
+      # ==================================================
+      # PATH MAPPING CONFIGURATION
+      # ==================================================
+      # Path prefix used in Stash database
+      STASH_PATH_PREFIX: ${STASH_PATH_PREFIX:-/data}
+      
+      # Actual filesystem path where media files are located
+      ERIN_PATH_PREFIX: /media
+    volumes:
+      # Mount your media directory (read-only recommended)
+      # Adjust the left side to match your media location
+      - ${MEDIA_PATH:-/path/to/media}:/media:ro
+    restart: unless-stopped
+    networks:
+      - erin-network
+
+networks:
+  erin-network:
+    driver: bridge
+
+# ==================================================
+# USAGE INSTRUCTIONS
+# ==================================================
+#
+# 1. Copy this file to your deployment location
+# 2. Create a .env file with your configuration:
+#
+#    STASH_URL=http://192.168.1.75:9999
+#    GROUP_NAMES=Erin,Favorites,New Releases
+#    STASH_PATH_PREFIX=/data
+#    MEDIA_PATH=/path/to/your/media
+#
+# 3. Run: docker-compose up -d
+# 4. Access Erin at: http://localhost:3000
+#
+# ==================================================
+# ENVIRONMENT VARIABLES REFERENCE
+# ==================================================
+#
+# Required:
+#   STASH_URL              - URL to Stash server (e.g., http://192.168.1.75:9999)
+#   MEDIA_PATH             - Path to media files on host (e.g., /mnt/media)
+#
+# Recommended:
+#   GROUP_NAMES            - Comma-separated Stash groups (e.g., Erin,Favorites)
+#   STASH_PATH_PREFIX      - Stash DB path prefix (default: /data)
+#
+# Optional:
+#   STASH_API_KEY          - Stash API key (if authentication required)
+#   SCROLL_DIRECTION       - vertical or horizontal (default: vertical)
+#   AUTOPLAY_ENABLED       - true or false (default: true)
+#   PROGRESS_BAR_POSITION  - top or bottom (default: top)
+#   IGNORE_HIDDEN_PATHS    - true or false (default: true)
+#
+# ==================================================
+# PORTS
+# ==================================================
+#
+#   3000 - Erin web interface
+#   3001 - Stash middleware API (internal communication)
+#
+# ==================================================
+# VOLUMES
+# ==================================================
+#
+# The container needs read access to your media files.
+# Map your media directory to /media inside the container.
+#
+# Example:
+#   volumes:
+#     - /mnt/nas/videos:/media:ro
+#
+# ==================================================
