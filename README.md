@@ -284,7 +284,7 @@ services:
 ```yaml
 services:
   erin:
-    image: ghcr.io/yourusername/erin-stash:latest
+    image: ghcr.io/OppositeOdd/erin-stash:latest
     ports:
       - "3000:80"
       - "3001:3001"
@@ -316,7 +316,7 @@ services:
       - /mnt/media:/data
     
   erin:
-    image: ghcr.io/yourusername/erin-stash:latest
+    image: ghcr.io/OppositeOdd/erin-stash:latest
     depends_on:
       - stash
     ports:
@@ -346,24 +346,6 @@ services:
       - /path/to/videos:/srv/videos:ro
 ```
 
-### With Custom Styling
-
-```yaml
-services:
-  erin:
-    image: ghcr.io/yourusername/erin-stash:latest
-    ports:
-      - "3000:80"
-      - "3001:3001"
-    environment:
-      STASH_URL: http://stash:9999
-      GROUP_NAMES: Erin
-      STASH_PATH_PREFIX: /data
-      USE_CUSTOM_SKIN: "true"
-    volumes:
-      - /mnt/media:/media:ro
-      - ./custom.css:/srv/custom.css:ro
-```
 
 ## Troubleshooting
 
