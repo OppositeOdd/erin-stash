@@ -51,7 +51,7 @@ Erin is a simple and self-hostable service that enables you to view your own cli
 version: '3.8'
 services:
   erin:
-    image: ghcr.io/yourusername/erin-stash:latest
+    image: ghcr.io/OppositeOdd/erin-stash:latest
     ports:
       - "3000:80"      # Erin web interface
       - "3001:3001"    # Middleware API
