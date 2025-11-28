@@ -5,6 +5,9 @@ services:
   erin:
     image: ghcr.io/oppositeodd/erin-stash:latest
     container_name: erin
+    depends_on:
+      stash:
+        condition: service_healthy
     ports:
       # Erin web interface
       - "3000:80"
@@ -59,6 +62,39 @@ services:
     networks:
       - erin-network
 
+  # Stash server (comment out if using external Stash instance)
+  stash:
+    image: stashapp/stash:latest
+    container_name: stash
+    restart: unless-stopped
+    environment:
+      - STASH_STASH=/data
+      - STASH_GENERATED=/generated
+      - STASH_METADATA=/metadata
+      - STASH_CACHE=/cache
+      - STASH_PORT=9999
+    ports:
+      - "9999:9999"
+    volumes:
+      - ${STASH_CONFIG_PATH:-./stash-config}:/root/.stash
+      - ${MEDIA_PATH:-/path/to/media}:/data
+      - stash-generated:/generated
+      - stash-metadata:/metadata
+      - stash-cache:/cache
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:9999/graphql"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - erin-network
+
+volumes:
+  stash-generated:
+  stash-metadata:
+  stash-cache:
+
 networks:
   erin-network:
     driver: bridge
@@ -67,10 +103,14 @@ networks:
 # USAGE INSTRUCTIONS
 # ==================================================
 #
+# This docker-compose includes both Erin and Stash.
+# If you already have Stash running elsewhere, comment out the 'stash' service
+# and remove the 'depends_on' section from the 'erin' service.
+#
 # 1. Copy this file to your deployment location
 # 2. Create a .env file with your configuration:
 #
-#    STASH_URL=http://192.168.1.75:9999
+#    STASH_URL=http://stash:9999  # Use 'stash' for container name or IP for external
 #    GROUP_NAMES=Erin,Favorites,New Releases
 #    STASH_PATH_PREFIX=/data
 #    MEDIA_PATH=/path/to/your/media

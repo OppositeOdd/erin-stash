@@ -1,242 +1,540 @@
 <p align="center">
-    <h1 align="center">Erin</h1>
+    <h1 align="center">Erin - TikTok-style Video Player with Stash Integration</h1>
     <p align="center">
-      Self-hostable TikTok feed for your clips
+      Self-hostable TikTok feed for your clips with Stash support
       <br />
-      Make a TikTok feed with your own videos
+      Make a TikTok feed with your own videos from Stash groups
    </p>
 </p>
+
+> **Note**: This is a fork of the original [Erin](https://github.com/StashApp/Erin) with integrated [Stash](https://github.com/stashapp/stash) support.
 
 | | | |
 |:-------------------------:|:-------------------------:|:-------------------------:|
 |<img width="1604" src="/screenshots/SCREENSHOT-1.png"/> |  <img width="1604" src="/screenshots/SCREENSHOT-2.png"/> | <img width="1604" src="/screenshots/SCREENSHOT-3.png"/> |
 
+## Table of Contents
+
+- [Introduction](#introduction)
+- [What's New in This Fork](#-whats-new-in-this-fork)
+- [Quick Start](#quick-start)
+  - [Docker with Stash (Recommended)](#docker-with-stash-recommended)
+  - [Docker Standalone](#docker-standalone)
+  - [From Source](#from-source)
+- [How It Works](#how-it-works)
+- [Stash Setup](#stash-setup)
+- [Configuration](#configuration)
+- [Features](#features)
+- [Examples](#examples)
+- [Troubleshooting](#troubleshooting)
+- [Credits](#credits)
+
 ## Introduction
 
-Erin is a simple and self-hostable service that enables you to view your own clips using TikTok's well-known vertical swipe feed.
-[A request was made on Reddit](https://www.reddit.com/r/selfhosted/comments/1dogl9d/selfhost_a_site_for_short_videos_like_tiktok/)
-for a self-hostable app that can show filtered videos using TikTok's interface, so I made it.
+Erin is a simple and self-hostable service that enables you to view your own clips using TikTok's well-known vertical swipe feed. This fork adds seamless integration with [Stash](https://github.com/stashapp/stash), allowing you to organize and play videos using Stash's powerful metadata and grouping features.
 
-## Features
+## 🆕 What's New in This Fork?
 
-Erin has all these features implemented :
-- Display your own videos using TikTok's swipe feed
-- Mask the videos you don't want to see in your feed\*
-- Choose which feed (playlist) you want to play\*\*
-- Autoplay your feed without even swiping
-- Seek forward and backward using your keyboard, or using double taps
-- Enter / Exit fullscreen using a double tap in the center
-- Share any clip with a direct link
-- Show video and playlist metadata using TikTok's UI\*\*\*
-- Simple lazy-loading mechanism for your videos
-- Automatic clip naming based on file name
-- Simple and optional security using a master password
-- Support for Horizontal and Vertical scroll direction
-- Support for custom styling\*\*\*\*
-- Support for HTTP and HTTPS
-- Support for Docker / proxy deployment
+- **Stash Integration**: Fetch videos directly from your Stash library using GraphQL
+- **Multiple Playlists**: Use Stash groups as playlists - each group becomes a separate feed
+- **Built-in Middleware**: Integrated Node.js middleware handles Stash communication
+- **Single Docker Container**: Simplified deployment with both services in one image
+- **Path Mapping**: Automatic translation between Stash database paths and filesystem
+- **Backward Compatible**: Still works with folder-based video organization if you don't use Stash
 
-On top of these, please note that Erin is only a React app powered entirely by [Caddy](https://github.com/caddyserver/caddy).
-Caddy takes care of authentication, serving static files, and serving the React app all at once.
+## Quick Start
 
-> \*: You can mask videos to hide them from your feed. Should you want to see which videos were masked, and even unmask them, you can long-press the `Mask` button, and the manager will open.
+### Docker with Stash (Recommended)
 
-> \*\*: By default, Erin will create a random feed from all the videos in your folder and its subdirectories. However, if you would like to create custom feeds (playlists), you can create subdirectories and organize your videos accordingly. For example: `https://my-server.tld/directory-a` will create a feed from the videos located in the `/directory-a` directory, and it works with any path (so, nested folders are supported).
-
-> \*\*\*: You can show a channel (with an avatar and name), a caption and a link for all your videos using a metadata file. The metadata file can be located anywhere inside your videos folder, and it must match its associated video's filename, while replacing the extension with JSON. For example: `my-video.mp4` can have its metadata in `my-video.json`. The metadata format [is shown here](/examples/video-metadata.json), and note that you can use raw HTML in the caption for custom styling and effects. Moreover, you may define folder-level metadata to set a name and avatar for any playlist, and those information will be used for all the videos within that folder if they don't have their own metadata already. The folder-level metadata format [is shown here](/examples/folder-metadata.json) and it belongs to a file named `metadata.json` inside your folder.
-
-> \*\*\*\*: You can inject your own stylesheet to customize the appearance of the app by doing two things: 1) set `USE_CUSTOM_SKIN` to `true`, and 2) mount a `custom.css` file onto `/srv/custom.css` in your container.
-
-For more information, read about [Configuration](#configuration).
-
-## Deployment and Examples
-
-Before proceeding, regardless of Docker, Docker Compose, or a standalone deployment, please make sure
-that you have created a `videos` directory containing all your video files. Later on, this directory will
-be made available to your instance of Erin (by binding a volume to your Docker container, or putting the directory
-next to your Caddyfile).
-
-### Deploy with Docker
-
-You can run Erin with Docker on the command line very quickly.
-
-You can use the following commands :
-
-```sh
-# Create a .env file
-touch .env
-
-# Edit .env file ...
-
-# Option 1 : Run Erin attached to the terminal (useful for debugging)
-docker run --env-file .env -p <YOUR-PORT-MAPPING> -v ./videos:/srv/videos:ro mosswill/erin
-
-# Option 2 : Run Erin as a daemon
-docker run -d --env-file .env -p <YOUR-PORT-MAPPING> -v ./videos:/srv/videos:ro mosswill/erin
+```yaml
+# docker-compose.yml
+version: '3.8'
+services:
+  erin:
+    image: ghcr.io/yourusername/erin-stash:latest
+    ports:
+      - "3000:80"      # Erin web interface
+      - "3001:3001"    # Middleware API
+    environment:
+      # Stash Configuration
+      STASH_URL: http://192.168.1.75:9999
+      GROUP_NAMES: Erin,Favorites,Workout
+      STASH_PATH_PREFIX: /data
+      STASH_API_KEY: ""  # Optional, if Stash requires auth
+      
+      # Erin Configuration
+      PUBLIC_URL: https://erin.yourdomain.com
+      AUTH_ENABLED: "true"
+      AUTH_SECRET: "your-hashed-password"
+      AUTOPLAY_ENABLED: "true"
+      SCROLL_DIRECTION: vertical
+      PROGRESS_BAR_POSITION: top
+    volumes:
+      - /mnt/media:/media:ro
 ```
 
-> **Note :** A `sample.env` file is located at the root of the repository to help you get started
-
-> **Note :** When using `docker run --env-file`, make sure to remove the quotes around `AUTH_ENABLED` and `AUTH_SECRET`, or else
-your container might crash due to unexpected interpolation and type conversions operated by Docker behind the scenes.
-
-### Deploy with Docker Compose
-
-To help you get started quickly, a few example `docker-compose` files are located in the ["examples/"](examples) directory.
-
-Here's a description of every example :
-
-- `docker-compose.simple.yml`: Run Erin as a front-facing service on port 443, with environment variables supplied in the `docker-compose` file directly.
-
-- `docker-compose.proxy.yml`: A setup with Erin running on port 80, behind a proxy listening on port 443.
-
-When your `docker-compose` file is on point, you can use the following commands :
-```sh
-# Run Erin in the current terminal (useful for debugging)
-docker-compose up
-
-# Run Erin in a detached terminal (most common)
+Start with:
+```bash
 docker-compose up -d
+```
 
-# Show the logs written by Erin (useful for debugging)
-docker logs <NAME-OF-YOUR-CONTAINER>
+### Docker Standalone
+
+Run Erin without Stash using traditional folder-based organization:
+
+```bash
+docker run -d \
+  -p 3000:80 \
+  -e PUBLIC_URL=https://localhost \
+  -e AUTH_ENABLED=false \
+  -v /path/to/videos:/srv/videos:ro \
+  mosswill/erin
+```
+
+### From Source
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/erin-stash.git
+cd erin-stash
+
+# Install dependencies
+npm install
+cd stash-middleware && npm install && cd ..
+
+# Configure
+cp .env.example .env
+# Edit .env with your Stash configuration
+
+# Start both services (middleware + React app)
+npm run start:both
+```
+
+This starts:
+- Erin React app on `http://localhost:3000`
+- Stash middleware on `http://localhost:3001`
+
+## How It Works
+
+### Architecture with Stash
+
+```
+┌─────────────────────────────────────────────────┐
+│                                                 │
+│  Erin Container (Single Docker Image)           │
+│                                                 │
+│  ┌──────────────────┐  ┌──────────────────┐     │
+│  │   Erin Web UI    │  │  Stash Middleware│     │
+│  │   (React + Caddy)│  │   (Node.js)      │     │
+│  │   Port: 80       │→│   Port: 3001      │     │
+│  └──────────────────┘  └──────────────────┘     │
+│           ↓                      ↓              │
+└───────────┼──────────────────────┼──────────────┘
+            │                      │
+            │                      ↓
+            │              ┌──────────────────┐
+            │              │   Stash Server   │
+            │              │   (GraphQL API)  │
+            │              └──────────────────┘
+            ↓
+    ┌──────────────────┐
+    │   Media Files    │
+    │   (Host Volume)  │
+    └──────────────────┘
+```
+
+### Data Flow
+
+1. **Erin Web UI** requests video list from middleware at `http://localhost:3001/media/`
+2. **Middleware** queries Stash GraphQL API for scenes in configured groups
+3. **Stash** returns scene metadata with database paths (e.g., `/data/Videos/movie.mp4`)
+4. **Middleware** translates paths using `STASH_PATH_PREFIX` → `/media/Videos/movie.mp4`
+5. **Middleware** returns processed video list to Erin
+6. **Erin** displays videos and streams them directly from mounted volume
+
+### Path Mapping Example
+
+```
+Stash DB:    /data/Videos/Workouts/cardio.mp4
+             ↓ (replace STASH_PATH_PREFIX with /media)
+Container:   /media/Videos/Workouts/cardio.mp4
+             ↓ (mounted from host)
+Host:        /mnt/nas/media/Videos/Workouts/cardio.mp4
+```
+
+## Stash Setup
+
+### 1. Create Groups in Stash
+
+1. Open Stash web interface (`http://your-stash:9999`)
+2. Navigate to **Settings** → **Metadata** → **Groups**
+3. Create groups (e.g., "Erin", "Favorites", "Workout", "Learning")
+4. Note the exact group names (case-sensitive)
+
+### 2. Add Scenes to Groups
+
+1. Browse to a scene in Stash
+2. Click **Edit** button
+3. In the **Groups** field, select or create groups
+4. Click **Save**
+
+### 3. Configure Erin Environment
+
+In your `.env` or `docker-compose.yml`:
+
+```bash
+# Single group
+GROUP_NAMES=Erin
+
+# Multiple groups (each becomes a playlist)
+GROUP_NAMES=Erin,Favorites,Workout,Learning
+```
+
+### 4. Test Middleware
+
+```bash
+# Check health
+curl http://localhost:3001/health
+
+# View all videos
+curl http://localhost:3001/media/
+
+# View specific group
+curl http://localhost:3001/media/Erin
 ```
 
 ## Configuration
 
-To run Erin, you will need to set the following environment variables in a `.env` file :
+### Stash-Specific Variables
 
-> **Note :** Regular environment variables provided on the commandline work too
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `STASH_URL` | Yes | - | Full URL to your Stash server (e.g., `http://192.168.1.75:9999`) |
+| `GROUP_NAMES` | Yes | - | Comma-separated list of Stash group names (e.g., `Erin,Favorites`) |
+| `STASH_PATH_PREFIX` | Yes | `/data` | Path prefix in Stash database (usually `/data`) |
+| `STASH_API_KEY` | No | - | Stash API key if authentication is required |
 
-> **Note :** A `sample.env` file is located at the root of the repository to help you get started
+### Erin Core Variables
 
-| Parameter               | Type      | Description                | Default |
-| :---------------------- | :-------- | :------------------------- | ------- |
-| `PUBLIC_URL`            | `boolean` | The public URL used to remotely access your instance of Erin. (Please include HTTP / HTTPS and the port if not standard 80 or 443. Do not include a trailing slash) (Read the [official Caddy documentation](https://caddyserver.com/docs/caddyfile/concepts#addresses)) | https://localhost        
-| `AUTH_ENABLED`          | `string`  | Whether Basic Authentication should be enabled. (This parameter is case sensitive) (Possible values : true, false) | true |
-| `AUTH_SECRET`           | `string`  | The secure hash of the password used to protect your instance of Erin. | Hash of `secure-password` |
-| `APP_TITLE`             | `string`  | The custom title that you would like to display in the browser's tab. (Tip: You can use `[VIDEO_TITLE]` here if you want Erin to dynamically display the title of the current video.) | Erin - TikTok feed for your own clips |
-| `AUTOPLAY_ENABLED`      | `boolean` | Whether autoplay should be enabled. (This parameter is case sensitive) (Possible values : true, false) | false |
-| `PROGRESS_BAR_POSITION` | `string`  | Where the progress bar should be located on the screen. (This parameter is case sensitive) (Possible values : bottom, top) | bottom |
-| `IGNORE_HIDDEN_PATHS`   | `boolean` | Whether all hidden files and directories (starting with a dot) should be ignored by Erin, and not loaded or scanned altogether | false |
-| `SCROLL_DIRECTION`      | `string`  | The scroll direction of your video feed. (Possible values : vertical, horizontal ) | vertical |
-| `USE_CUSTOM_SKIN`       | `boolean` | Whether a custom skin should be loaded on startup. (Possible values : true, false) | false |
+| Variable | Type | Default | Description |
+|----------|------|---------|-------------|
+| `PUBLIC_URL` | string | `https://localhost` | Public URL for accessing Erin (include protocol, exclude trailing slash) |
+| `AUTH_ENABLED` | boolean | `true` | Enable basic authentication (case-sensitive: `true` or `false`) |
+| `AUTH_SECRET` | string | Hash of `secure-password` | Bcrypt hash of your password |
+| `APP_TITLE` | string | `Erin - TikTok feed for your own clips` | Browser tab title (use `[VIDEO_TITLE]` for dynamic titles) |
+| `AUTOPLAY_ENABLED` | boolean | `false` | Enable automatic video playback |
+| `PROGRESS_BAR_POSITION` | string | `bottom` | Progress bar position (`top` or `bottom`) |
+| `IGNORE_HIDDEN_PATHS` | boolean | `false` | Ignore hidden files/directories (starting with `.`) |
+| `SCROLL_DIRECTION` | string | `vertical` | Video feed scroll direction (`vertical` or `horizontal`) |
+| `USE_CUSTOM_SKIN` | boolean | `false` | Load custom CSS stylesheet |
 
-> **Tip :** To generate a secure hash for your instance, use the following command :
+See [ENVIRONMENT-VARIABLES.md](ENVIRONMENT-VARIABLES.md) for complete documentation.
 
-```sh
+### Generating Password Hash
+
+```bash
 docker run caddy caddy hash-password --plaintext "your-new-password"
 ```
 
-> **Note :** When using `docker-compose.yml` environment variables, if your password hash contains dollar signs: double them all, or else the app will crash.
-> For example : `$ab$cd$efxyz` becomes `$$ab$$cd$$efxyz`. This is due to caveats with `docker-compose` string interpolation system.
+> **Note**: When using `docker-compose.yml`, double all dollar signs in the hash: `$ab$cd` becomes `$$ab$$cd`
 
-## Troubleshoot
+## Features
 
-Should you encounter any issue running Erin, please refer to the following common problems that may occur.
+- ✅ Display videos using TikTok's swipe feed UI
+- ✅ **Stash Integration**: Fetch videos from Stash groups via GraphQL
+- ✅ **Multiple Playlists**: Each Stash group becomes a separate playlist
+- ✅ Mask videos you don't want to see (long-press Mask button to manage)
+- ✅ Custom feeds per directory/group
+- ✅ Autoplay mode for hands-free viewing
+- ✅ Keyboard shortcuts and double-tap controls
+- ✅ Fullscreen support (double-tap center)
+- ✅ Direct video sharing with links
+- ✅ Video and playlist metadata display
+- ✅ Lazy loading for performance
+- ✅ Basic authentication with master password
+- ✅ Horizontal and vertical scroll modes
+- ✅ Custom CSS styling support
+- ✅ HTTP and HTTPS support
+- ✅ Reverse proxy compatible
 
-> If none of these matches your case, feel free to open an issue.
+> **Tip**: Long-press the Mask button to open the blacklist manager and view/unmask hidden videos.
 
-#### Erin is unreachable over HTTP / HTTPS
+## Examples
 
-Erin sits on top of a Caddy web server.
+### Basic Stash Integration
 
-As a result :
-- You may be able to better troubleshoot the issue by reading your container logs.
-- You can check the [official Caddy documentation regarding addresses](https://caddyserver.com/docs/caddyfile/concepts#addresses).
-- You can check the [official Caddy documentation regarding HTTPS](https://caddyserver.com/docs/automatic-https).
+```yaml
+version: '3.8'
+services:
+  erin:
+    image: ghcr.io/yourusername/erin-stash:latest
+    ports:
+      - "3000:80"
+      - "3001:3001"
+    environment:
+      STASH_URL: http://192.168.1.75:9999
+      GROUP_NAMES: Erin
+      STASH_PATH_PREFIX: /data
+    volumes:
+      - /mnt/media:/media:ro
+```
 
-Other than that, please make sure that the following requirements are met :
+### Multiple Playlists with Authentication
 
-- If Erin runs as a standalone application without proxy :
-    - Make sure your server / firewall accepts incoming connections on Erin's port.
-    - Make sure your DNS configuration is correct. (Usually, such record should suffice : `A erin XXX.XXX.XXX.XXX` for `https://erin.your-server-tld`)
-    - Make sure your `.env` file is well configured according to the [Configuration](#configuration) section.
+```yaml
+services:
+  erin:
+    image: ghcr.io/yourusername/erin-stash:latest
+    ports:
+      - "3000:80"
+      - "3001:3001"
+    environment:
+      STASH_URL: https://stash.example.com:9999
+      STASH_API_KEY: your-api-key-here
+      GROUP_NAMES: Favorites,Workout,Learning,Archive
+      STASH_PATH_PREFIX: /data
+      PUBLIC_URL: https://erin.example.com
+      AUTH_ENABLED: "true"
+      AUTH_SECRET: "$$2a$$14$$hashed-password"
+      AUTOPLAY_ENABLED: "true"
+    volumes:
+      - /mnt/nas/videos:/media:ro
+```
 
-- If Erin runs inside Docker / behind a proxy :
-    - Perform the previous (standalone) verifications first.
-    - Make sure that `PUBLIC_URL` is well set in `.env`.
-    - Check your proxy forwarding rules.
-    - Check your Docker networking setup.
+### Running Alongside Stash
 
-In any case, the crucial part is [Configuration](#configuration) and reading the official Caddy documentation.
+```yaml
+version: '3.8'
 
-#### Erin says that no video was found on my server
+services:
+  stash:
+    image: stashapp/stash:latest
+    ports:
+      - "9999:9999"
+    volumes:
+      - ./stash-config:/root/.stash
+      - /mnt/media:/data
+    
+  erin:
+    image: ghcr.io/yourusername/erin-stash:latest
+    depends_on:
+      - stash
+    ports:
+      - "3000:80"
+      - "3001:3001"
+    environment:
+      STASH_URL: http://stash:9999
+      GROUP_NAMES: Erin,Favorites
+      STASH_PATH_PREFIX: /data
+      PUBLIC_URL: https://erin.example.com
+    volumes:
+      - /mnt/media:/media:ro
+```
 
-For Erin to serve your video files, those must respect the following requirements :
-- The file extension is one of `.mp4`, `.ogg`, `.webm`. (There are the only extensions supported by web browsers.)
-- The files are located in `/srv/videos` on your Docker container using a volume.
+### Traditional Folder-Based (No Stash)
 
-To make sure that your videos are inside your Docker container and in the right place, you can :
-- Run `docker exec -it <NAME-OF-YOUR-CONTAINER> sh`
-- Inside the newly-opened shell, run : `ls /srv/videos`
-- You should see your video files here. If not, then check your volume-binding.
+```yaml
+services:
+  erin:
+    image: mosswill/erin
+    ports:
+      - "3000:80"
+    environment:
+      PUBLIC_URL: https://erin.example.com
+      AUTH_ENABLED: "false"
+    volumes:
+      - /path/to/videos:/srv/videos:ro
+```
 
-If Erin is still unable to find your videos despite everything being well-configured, please open an issue
-including the output of your browser's Javascript console and network tab when the request goes to `/media/`.
-It may have to do with browser-caching, invalid configuration, or invalid credentials.
+### With Custom Styling
 
-#### How can I add new videos to my feed?
+```yaml
+services:
+  erin:
+    image: ghcr.io/yourusername/erin-stash:latest
+    ports:
+      - "3000:80"
+      - "3001:3001"
+    environment:
+      STASH_URL: http://stash:9999
+      GROUP_NAMES: Erin
+      STASH_PATH_PREFIX: /data
+      USE_CUSTOM_SKIN: "true"
+    volumes:
+      - /mnt/media:/media:ro
+      - ./custom.css:/srv/custom.css:ro
+```
 
-For now, you should just put your new video files into your videos directory that is mounted with Docker.
-Erin will automatically pick up these new files, and when you refresh your browser you'll see them.
+## Troubleshooting
 
-#### How should I name my video files?
+### Stash-Related Issues
 
-Erin will automatically translate your file name into a title to display on the interface.
+#### Videos Not Loading from Stash
 
-The conversion operated is as follows :
-- `-` becomes ` `
+**Check middleware connection:**
+```bash
+curl http://localhost:3001/health
+# Expected: {"status":"ok","stashUrl":"http://...","groups":["Erin","Favorites"]}
+```
+
+**Check middleware logs:**
+```bash
+docker-compose logs erin | grep middleware
+```
+
+**Verify groups exist in Stash:**
+- Log into Stash web interface
+- Go to **Settings** → **Metadata** → **Groups**
+- Ensure group names match `GROUP_NAMES` exactly (case-sensitive)
+
+**Test video retrieval:**
+```bash
+# View all videos from all groups
+curl http://localhost:3001/media/
+
+# View videos from specific group
+curl http://localhost:3001/media/Erin
+```
+
+#### Path Mapping Issues
+
+**Common problems:**
+- `STASH_PATH_PREFIX` doesn't match Stash's configured path
+- Media files not accessible at the mounted path
+- File permissions prevent reading
+
+**Test path translation:**
+```bash
+curl http://localhost:3001/media/paths
+```
+
+Expected response shows path mapping:
+```json
+[
+  {
+    "group": "Erin",
+    "sceneId": "123",
+    "title": "Video Title",
+    "stashPath": "/data/Videos/video.mp4",
+    "erinPath": "/media/Videos/video.mp4",
+    "filename": "video.mp4"
+  }
+]
+```
+
+#### Connection Refused to Stash
+
+**Checklist:**
+- Verify `STASH_URL` is correct and reachable
+- Test Stash directly: `curl http://192.168.1.75:9999`
+- Check firewall rules between containers
+- If using Docker networks, use container name: `http://stash:9999`
+- Verify Stash is running and healthy
+
+#### Empty Playlists
+
+**Verify:**
+- Groups exist in Stash with the exact names specified
+- Scenes are added to those groups
+- Scenes have valid file paths in Stash database
+- Files exist at the mapped filesystem location
+- File permissions allow reading
+
+### General Erin Issues
+
+#### Erin Unreachable Over HTTP/HTTPS
+
+**Standalone deployment:**
+- Ensure server/firewall allows connections on Erin's port
+- Verify DNS configuration (e.g., `A erin 192.168.1.100`)
+- Check `.env` configuration matches [Configuration](#configuration)
+
+**Docker/Proxy deployment:**
+- Verify `PUBLIC_URL` is set correctly
+- Check proxy forwarding rules
+- Verify Docker networking setup
+- Review Caddy logs: `docker logs <container-name>`
+
+For more help, see [Caddy address documentation](https://caddyserver.com/docs/caddyfile/concepts#addresses).
+
+#### No Videos Found (Folder Mode)
+
+**Requirements:**
+- File extensions must be `.mp4`, `.ogg`, or `.webm`
+- Files must be in `/srv/videos` in the container
+
+**Verify volume mount:**
+```bash
+docker exec -it <container-name> sh
+ls /srv/videos
+```
+
+#### File Naming
+
+Erin converts filenames to titles:
+- `-` becomes ` ` (space)
 - `__` becomes ` - `
 
-Here's a few examples to help you name your files :
-- `Vegas-trip__Clip-1.mp4` becomes `Vegas trip - Clip 1`
-- `Spanish-language__Lesson-1.mp4` becomes `Spanish language - Lesson 1`
-- `Spiderman-1.ogg` becomes `Spiderman 1`
+Examples:
+- `Vegas-trip__Clip-1.mp4` → `Vegas trip - Clip 1`
+- `Spanish-language__Lesson-1.mp4` → `Spanish language - Lesson 1`
 
-#### In what order will my files appear in the feed?
+#### Video Order
 
-Erin randomly shuffles your video files on every browser refresh.
+Videos are randomly shuffled on each browser refresh.
 
-As a result, there is no specific order for your videos to appear.
+#### Supported Formats
 
-#### Some of my videos seem to be missing or not loaded at all
+- `.webm` - All browsers
+- `.mp4` - All browsers  
+- `.ogg` - Not supported in Safari
 
-For now, Erin will only attempt to retrieve the videos that have a supported extension.
+#### Password Issues
 
-Supported extensions are : `.webm`, `.mp4`, and `.ogg`.
+**Docker CLI (`docker run --env-file`):**
+- No quotes around `AUTH_SECRET`
+- Keep dollar signs as-is
 
-However, please note that Safari doesn't seem to support `.ogg`, hence these videos will be ignored for Safari users.
+**Docker Compose:**
+- Double all dollar signs: `$ab$cd` → `$$ab$$cd`
 
-Should you have any advice or idea to support more extensions (especially for Safari users), please feel free to open an issue.
+#### Custom Password Not Working
 
-#### My custom password doesn't work
-
-There seems to be a few caveats when using Docker / Docker Compose with Caddy-generated password hashes.
-
-These are the rules you should follow :
-- If you deployed Erin using the Docker CLI, via the command `docker run ... --env-file .env ...`, then your `AUTH_SECRET` should have no quote at all, and all the dollar signs should stay as they are without escape or doubling
-- If you deployed Erin using Docker Compose, via a `docker-compose.yml` file, then your `AUTH_SECRET` should have its dollar signs doubled. Example : `i$am$groot` becomes `i$$am$$groot`.
-
-That said, remember that your password hash must be generated with the following command :
-
-```sh
-docker run caddy caddy hash-password --plaintext "your-new-password"
+Generate hash correctly:
+```bash
+docker run caddy caddy hash-password --plaintext "your-password"
 ```
 
+Then use the output in your configuration, following the rules above.
 
-#### Something else
+## Differences from Original Erin
 
-Please feel free to open an issue, explaining what happens, and describing your environment.
+**Added:**
+- Stash GraphQL integration via middleware
+- Group-based playlist organization
+- Automatic path mapping for Stash
+- Dual-port Docker deployment (UI + API)
+- Built-in Node.js middleware service
+
+**Preserved:**
+- All original Erin features and UI
+- TikTok-style vertical/horizontal scrolling
+- Video player controls
+- Authentication support
+- Folder-based mode (backward compatible)
+- Custom styling support
 
 ## Credits
 
-Hey hey ! It's always a good idea to say thank you and mention the people and projects that help us move forward.
+Big thanks to:
+- **[StashApp/Erin](https://github.com/StashApp/Erin)** - Original Erin project
+- **[stashapp/stash](https://github.com/stashapp/stash)** - Stash video organizer
+- **[tik-tok-clone](https://github.com/cauemustafa/tik-tok-clone)** - Base TikTok UI
+- **[Caddy](https://github.com/caddyserver/caddy)** - Web server
+- And countless others!
 
-Big thanks to the individuals / teams behind these projects :
-- [tik-tok-clone](https://github.com/cauemustafa/tik-tok-clone) : For the base TikTok UI and smooth interaction.
-- [Caddy](https://github.com/caddyserver/caddy) : For the lightweight and powerful web server.
-- The countless others!
+## License
 
-And don't forget to mention Erin if you like it or if it helps you in any way!
+MIT License - Same as original Erin project
 
+See [LICENSE](LICENSE) for details.

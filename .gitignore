@@ -1,4 +1,5 @@
 /node_modules
+/stash-middleware/node_modules
 /.pnp
 .pnp.js
 /coverage
@@ -17,7 +18,19 @@ yarn-error.log*
 .aliases
 scripts/_*.sh
 .prettierrc
+.prettierrc.json
+eslint.config.mjs
+.eslintrc
+.eslintrc.json
 tmp
 dev
 *.dev.*
 .warn
+
+# Development videos (keep structure, ignore video files)
+videos/**/*.mp4
+videos/**/*.webm
+videos/**/*.ogg
+videos/**/*.mov
+videos/**/*.avi
+!videos/README.md
